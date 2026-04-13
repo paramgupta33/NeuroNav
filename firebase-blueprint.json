@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the application.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique identifier for the user." },
+        "displayName": { "type": "string", "description": "The user's display name." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." }
+      },
+      "required": ["uid", "email"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "A physical location on the map.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "The name of the location." },
+        "lat": { "type": "number", "description": "Latitude." },
+        "lng": { "type": "number", "description": "Longitude." },
+        "address": { "type": "string", "description": "The address of the location." }
+      },
+      "required": ["name", "lat", "lng"]
+    },
+    "SensoryReport": {
+      "title": "Sensory Report",
+      "description": "A crowdsourced report of the sensory environment at a location.",
+      "type": "object",
+      "properties": {
+        "locationId": { "type": "string", "description": "The ID of the location this report is for." },
+        "userId": { "type": "string", "description": "The ID of the user who submitted the report." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the report was submitted." },
+        "sound": { "type": "string", "enum": ["Quiet", "Low-hum", "Loud", "Sudden Noises"], "description": "Sound level." },
+        "lighting": { "type": "string", "enum": ["Natural Light", "Dim", "Bright/Fluorescent", "Flickering"], "description": "Lighting condition." },
+        "crowd": { "type": "string", "enum": ["Empty", "Spaced-out", "Crowded"], "description": "Crowd level." },
+        "fragrance": { "type": "string", "enum": ["Fragrance-free", "Strong Scents"], "description": "Fragrance level." },
+        "verifications": { "type": "number", "description": "Number of times this report has been verified by other users." }
+      },
+      "required": ["locationId", "userId", "timestamp", "sound", "lighting", "crowd", "fragrance", "verifications"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles."
+    },
+    "/locations/{locationId}": {
+      "schema": { "$ref": "#/entities/Location" },
+      "description": "Stores physical locations."
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/SensoryReport" },
+      "description": "Stores sensory reports."
+    }
+  }
+}

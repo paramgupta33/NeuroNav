@@ -1,0 +1,121 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId
+    // Fields:
+    //   - uid: string (required)
+    //   - displayName: string (optional)
+    //   - email: string (required)
+    //
+    // Collection: locations
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required)
+    //   - lat: number (required)
+    //   - lng: number (required)
+    //   - address: string (optional)
+    //
+    // Collection: reports
+    // Document ID: auto-generated
+    // Fields:
+    //   - locationId: string (required)
+    //   - userId: string (required)
+    //   - timestamp: string (required)
+    //   - sound: string (required)
+    //   - lighting: string (required)
+    //   - crowd: string (required)
+    //   - fragrance: string (required)
+    //   - verifications: number (required)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Domain Validators
+    function isValidUser() {
+      return hasOnlyAllowedFields(['uid', 'displayName', 'email']) &&
+             hasRequiredFields(['uid', 'email']) &&
+             request.resource.data.uid is string &&
+             request.resource.data.uid == request.auth.uid &&
+             isValidEmail(request.resource.data.email) &&
+             (!('displayName' in request.resource.data) || (request.resource.data.displayName is string && request.resource.data.displayName.size() <= 100));
+    }
+
+    function isValidLocation() {
+      return hasOnlyAllowedFields(['name', 'lat', 'lng', 'address']) &&
+             hasRequiredFields(['name', 'lat', 'lng']) &&
+             request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 200 &&
+             request.resource.data.lat is number &&
+             request.resource.data.lng is number &&
+             (!('address' in request.resource.data) || (request.resource.data.address is string && request.resource.data.address.size() <= 500));
+    }
+
+    function isValidReport() {
+      return hasOnlyAllowedFields(['locationId', 'userId', 'timestamp', 'sound', 'lighting', 'crowd', 'fragrance', 'verifications']) &&
+             hasRequiredFields(['locationId', 'userId', 'timestamp', 'sound', 'lighting', 'crowd', 'fragrance', 'verifications']) &&
+             request.resource.data.locationId is string && request.resource.data.locationId.size() > 0 &&
+             request.resource.data.userId is string && request.resource.data.userId == request.auth.uid &&
+             isValidDateString(request.resource.data.timestamp) &&
+             request.resource.data.sound in ["Quiet", "Low-hum", "Loud", "Sudden Noises"] &&
+             request.resource.data.lighting in ["Natural Light", "Dim", "Bright/Fluorescent", "Flickering"] &&
+             request.resource.data.crowd in ["Empty", "Spaced-out", "Crowded"] &&
+             request.resource.data.fragrance in ["Fragrance-free", "Strong Scents"] &&
+             request.resource.data.verifications is number && request.resource.data.verifications >= 0;
+    }
+
+    function isValidVerificationUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(['verifications']) &&
+             request.resource.data.verifications == resource.data.verifications + 1;
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser();
+      allow update: if isOwner(userId) && isValidUser() && request.resource.data.uid == resource.data.uid;
+    }
+
+    match /locations/{locationId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidLocation();
+      allow update: if isAuthenticated() && isValidLocation();
+    }
+
+    match /reports/{reportId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isValidReport() && request.resource.data.verifications == 0;
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.userId && isValidReport() && request.resource.data.userId == resource.data.userId) ||
+        (isValidVerificationUpdate())
+      );
+    }
+  }
+}
